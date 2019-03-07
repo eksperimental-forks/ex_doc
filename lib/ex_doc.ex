@@ -27,8 +27,8 @@ defmodule ExDoc do
       ExDoc.Markdown.configure_processor(markdown_processor_options)
     end
 
-    docs = config.retriever.docs_from_dir(config.source_beam, config)
-    find_formatter(config.formatter).run(docs, config)
+    {docs, docs_false} = config.retriever.docs_from_dir(config.source_beam, config)
+    find_formatter(config.formatter).run({docs, docs_false}, config)
   end
 
   # Builds configuration by merging `options`, and normalizing the options.

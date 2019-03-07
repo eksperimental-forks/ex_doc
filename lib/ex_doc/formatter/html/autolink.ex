@@ -75,7 +75,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
   @doc """
   Compiles information used during autolinking.
   """
-  def compile(modules, extension, config) do
+  def compile({modules, docs_false}, extension, config) do
     aliases = Enum.map(modules, & &1.module)
     modules_refs = Enum.map(aliases, &inspect/1)
 
@@ -99,6 +99,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
       extension: extension,
       lib_dirs: lib_dirs,
       modules_refs: modules_refs,
+      modules_doc_false: docs_false,
       skip_undefined_reference_warnings_on: config.skip_undefined_reference_warnings_on
     }
   end
@@ -399,6 +400,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
     lib_dirs = options[:lib_dirs] || default_lib_dirs(:elixir)
     module_id = options[:module_id] || nil
     modules_refs = options[:modules_refs] || []
+    modules_doc_false = options[:modules_doc_false] || []
 
     fn all, text, match ->
       pmfa = split_match(:module, match)
@@ -410,6 +412,9 @@ defmodule ExDoc.Formatter.HTML.Autolink do
 
         match in modules_refs ->
           "[#{text}](#{match}#{extension})"
+
+        match in modules_doc_false ->
+          all
 
         doc = module_docs(:elixir, match, lib_dirs) ->
           "[#{text}](#{doc}#{match}.html)"
@@ -424,6 +429,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
     aliases = options[:aliases] || []
     docs_refs = options[:docs_refs] || []
     modules_refs = options[:modules_refs] || []
+    modules_doc_false = options[:modules_doc_false] || []
     extension = options[:extension] || ".html"
     lib_dirs = options[:lib_dirs] || default_lib_dirs(:elixir)
     locals = options[:locals] || []
@@ -455,6 +461,9 @@ defmodule ExDoc.Formatter.HTML.Autolink do
         match in @special_form_strings ->
           "[#{text}](#{elixir_docs}Kernel.SpecialForms" <>
             "#{extension}##{prefix}#{enc_h(function)}/#{arity})"
+
+        module in modules_doc_false ->
+          all
 
         module in modules_refs ->
           if module_id not in skip_warnings_on and id not in skip_warnings_on do

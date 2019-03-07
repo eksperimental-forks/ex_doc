@@ -13,7 +13,7 @@ defmodule ExDoc.Retriever do
   @doc """
   Extract documentation from all modules in the specified directory or directories.
   """
-  @spec docs_from_dir(Path.t() | [Path.t()], ExDoc.Config.t()) :: [ExDoc.ModuleNode.t()]
+  @spec docs_from_dir(Path.t() | [Path.t()], ExDoc.Config.t()) :: {[ExDoc.ModuleNode.t()], [module]}
   def docs_from_dir(dir, config) when is_binary(dir) do
     pattern = if config.filter_prefix, do: "Elixir.#{config.filter_prefix}*.beam", else: "*.beam"
     files = Path.wildcard(Path.expand(pattern, dir))
@@ -21,13 +21,24 @@ defmodule ExDoc.Retriever do
   end
 
   def docs_from_dir(dirs, config) when is_list(dirs) do
-    Enum.flat_map(dirs, &docs_from_dir(&1, config))
+    {docs, docs_false} =
+      dirs
+      |> Enum.flat_map(&docs_from_dir(&1, config))
+      |> Enum.split_with(fn
+        {:module_doc_hidden, _} -> false
+        _ -> true
+      end)
+
+    {
+      docs,
+      Enum.map(docs_false, &inspect(elem(&1, 1)))
+    }
   end
 
   @doc """
   Extract documentation from all modules in the specified list of files
   """
-  @spec docs_from_files([Path.t()], ExDoc.Config.t()) :: [ExDoc.ModuleNode.t()]
+  @spec docs_from_files([Path.t()], ExDoc.Config.t()) :: {[ExDoc.ModuleNode.t()], [module]}
   def docs_from_files(files, config) when is_list(files) do
     files
     |> Enum.map(&filename_to_module(&1))
@@ -37,13 +48,22 @@ defmodule ExDoc.Retriever do
   @doc """
   Extract documentation from all modules in the list `modules`
   """
-  @spec docs_from_modules([atom], ExDoc.Config.t()) :: [ExDoc.ModuleNode.t()]
+  @spec docs_from_modules([module], ExDoc.Config.t()) :: {[ExDoc.ModuleNode.t()], [module]}
   def docs_from_modules(modules, config) when is_list(modules) do
-    modules
-    |> Enum.flat_map(&get_module(&1, config))
-    |> Enum.sort_by(fn module ->
-      {GroupMatcher.group_index(config.groups_for_modules, module.group), module.id}
-    end)
+    {docs, docs_false} =
+      modules
+      |> Enum.flat_map(&get_module(&1, config))
+      |> Enum.split_with(fn
+        {:module_doc_hidden, _} -> false
+        _ -> true
+      end)
+
+    {
+      Enum.sort_by(docs, fn module ->
+        {GroupMatcher.group_index(config.groups_for_modules, module.group), module.id}
+      end),
+      Enum.map(docs_false, &inspect(elem(&1, 1)))
+    }
   end
 
   defp filename_to_module(name) do
@@ -60,10 +80,15 @@ defmodule ExDoc.Retriever do
       raise Error, "module #{inspect(module)} is not defined/available"
     end
 
-    if docs_chunk = docs_chunk(module) do
-      generate_node(module, docs_chunk, config)
-    else
-      []
+    case docs_chunk(module) do
+      false ->
+        []
+
+      :hidden ->
+        %{module_doc_hidden: module}
+
+      docs_chunk ->
+        generate_node(module, docs_chunk, config)
     end
   end
 
@@ -89,7 +114,7 @@ defmodule ExDoc.Retriever do
     if function_exported?(module, :__info__, 1) do
       case Code.fetch_docs(module) do
         {:docs_v1, _, _, _, :hidden, _, _} ->
-          false
+          :hidden
 
         {:docs_v1, _, _, _, _, _, _} = docs ->
           docs

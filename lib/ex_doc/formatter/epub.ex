@@ -9,12 +9,12 @@ defmodule ExDoc.Formatter.EPUB do
   Generate EPUB documentation for the given modules.
   """
   @spec run(list, ExDoc.Config.t()) :: String.t()
-  def run(project_nodes, config) when is_map(config) do
+  def run({project_nodes, docs_false}, config) when is_map(config) do
     config = normalize_config(config)
     File.rm_rf!(config.output)
     File.mkdir_p!(Path.join(config.output, "OEBPS"))
 
-    autolink = HTML.Autolink.compile(project_nodes, ".xhtml", config)
+    autolink = HTML.Autolink.compile({project_nodes, docs_false}, ".xhtml", config)
     linked = HTML.Autolink.all(project_nodes, autolink)
 
     nodes_map = %{

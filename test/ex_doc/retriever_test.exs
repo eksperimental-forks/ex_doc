@@ -30,7 +30,7 @@ defmodule ExDoc.RetrieverTest do
 
   describe "modules" do
     test "returns module nodes" do
-      [module_node] = docs_from_files(["CompiledWithDocs"])
+      {[module_node], _} = docs_from_files(["CompiledWithDocs"])
       assert module_node.id == "CompiledWithDocs"
       assert module_node.title == "CompiledWithDocs"
       assert module_node.module == CompiledWithDocs
@@ -52,17 +52,17 @@ defmodule ExDoc.RetrieverTest do
     end
 
     test "returns module group" do
-      [module_node] =
+      {[module_node], _} =
         docs_from_files(["CompiledWithDocs"], groups_for_modules: [Group: [CompiledWithDocs]])
 
       assert module_node.group == :Group
 
-      [module_node] =
+      {[module_node], _} =
         docs_from_files(["CompiledWithDocs"], groups_for_modules: [Group: ["CompiledWithDocs"]])
 
       assert module_node.group == :Group
 
-      [module_node] =
+      {[module_node], _} =
         docs_from_files(["CompiledWithDocs"], groups_for_modules: [Group: ~r/^CompiledWith.?/])
 
       assert module_node.group == :Group
@@ -71,7 +71,7 @@ defmodule ExDoc.RetrieverTest do
     test "returns nesting information" do
       prefix = "Common.Nesting.Prefix"
 
-      module_nodes =
+      {module_nodes, _} =
         docs_from_files([prefix <> ".Foo", prefix <> ".Bar"], nest_modules_by_prefix: [prefix])
 
       assert length(module_nodes) > 0
@@ -82,14 +82,14 @@ defmodule ExDoc.RetrieverTest do
       end
 
       name = "Common.Nesting.Prefix.Foo"
-      [module_node] = docs_from_files([name], nest_modules_by_prefix: [name])
+      {[module_node], _} = docs_from_files([name], nest_modules_by_prefix: [name])
 
       refute module_node.nested_context
       refute module_node.nested_title
     end
 
     test "returns the function nodes for each module" do
-      [module_node] =
+      {[module_node], _} =
         docs_from_files(["CompiledWithDocs"],
           groups_for_functions: [
             Example: &(&1[:purpose] == :example),
@@ -138,7 +138,7 @@ defmodule ExDoc.RetrieverTest do
     end
 
     test "returns the specs for each non-private function" do
-      [module_node] = docs_from_files(["TypesAndSpecs"])
+      {[module_node], _} = docs_from_files(["TypesAndSpecs"])
       [add, _, _] = module_node.docs
 
       assert add.id == "add/2"
@@ -148,7 +148,7 @@ defmodule ExDoc.RetrieverTest do
     end
 
     test "returns the specs for non-private macros" do
-      [module_node] = docs_from_files(["TypesAndSpecs"])
+      {[module_node], _} = docs_from_files(["TypesAndSpecs"])
       [_, _, macro] = module_node.docs
 
       assert macro.id == "macro_spec/1"
@@ -158,7 +158,7 @@ defmodule ExDoc.RetrieverTest do
     end
 
     test "returns the spec info for each non-private module type" do
-      [module_node] = docs_from_files(["TypesAndSpecs"])
+      {[module_node], _} = docs_from_files(["TypesAndSpecs"])
       [opaque, public, ref] = module_node.typespecs
 
       assert opaque.name == :opaque
@@ -189,18 +189,18 @@ defmodule ExDoc.RetrieverTest do
     test "returns the source when source_root set to nil" do
       files = Enum.map(["CompiledWithDocs"], fn n -> "test/tmp/Elixir.#{n}.beam" end)
       config = %ExDoc.Config{source_url_pattern: "%{path}:%{line}", source_root: nil}
-      [module_node] = Retriever.docs_from_files(files, config)
+      {[module_node], _} = Retriever.docs_from_files(files, config)
       assert String.ends_with?(module_node.source_url, "/test/fixtures/compiled_with_docs.ex:1")
     end
 
     test "returns for modules without docs" do
-      [module_node] = docs_from_files(["CompiledWithoutDocs"])
+      {[module_node], _} = docs_from_files(["CompiledWithoutDocs"])
       assert module_node.doc == nil
       assert module_node.docs == []
     end
 
     test "returns callbacks with no docs included" do
-      [module_node] = docs_from_files(["CallbacksNoDocs"])
+      {[module_node], _} = docs_from_files(["CallbacksNoDocs"])
       [connect, id] = module_node.docs
 
       assert connect.id == "connect/2"
@@ -220,14 +220,14 @@ defmodule ExDoc.RetrieverTest do
 
   describe "exceptions" do
     test "are properly tagged" do
-      [module_node] = docs_from_files(["RandomError"])
+      {[module_node], _} = docs_from_files(["RandomError"])
       assert module_node.type == :exception
     end
   end
 
   describe "tasks" do
     test "are properly tagged" do
-      [module_node] = docs_from_files(["Mix.Tasks.TaskWithDocs"])
+      {[module_node], _} = docs_from_files(["Mix.Tasks.TaskWithDocs"])
       assert module_node.type == :task
       assert module_node.id == "Mix.Tasks.TaskWithDocs"
       assert module_node.title == "task_with_docs"
@@ -238,7 +238,7 @@ defmodule ExDoc.RetrieverTest do
 
   describe "behaviours" do
     test "ignores internal functions" do
-      [module_node] = docs_from_files(["CustomBehaviourOne"])
+      {[module_node], _} = docs_from_files(["CustomBehaviourOne"])
       functions = Enum.map(module_node.docs, fn doc -> doc.id end)
       assert functions == ["greet/1", "hello/1"]
       [greet, hello] = module_node.docs
@@ -249,7 +249,7 @@ defmodule ExDoc.RetrieverTest do
     end
 
     test "returns macro callbacks" do
-      [module_node] = docs_from_files(["CustomBehaviourTwo"])
+      {[module_node], _} = docs_from_files(["CustomBehaviourTwo"])
       functions = Enum.map(module_node.docs, fn doc -> doc.id end)
       assert functions == ["bye/1"]
       assert hd(module_node.docs).type == :macrocallback
@@ -260,6 +260,7 @@ defmodule ExDoc.RetrieverTest do
       [module_node] =
         ["CustomBehaviourOne", "CustomBehaviourTwo", "CustomBehaviourImpl"]
         |> docs_from_files()
+        |> elem(0)
         |> Enum.filter(&match?(%ExDoc.ModuleNode{id: "CustomBehaviourImpl"}, &1))
 
       docs = module_node.docs
@@ -280,12 +281,12 @@ defmodule ExDoc.RetrieverTest do
 
   describe "protocols" do
     test "are properly tagged" do
-      [module_node] = docs_from_files(["CustomProtocol"])
+      {[module_node], _} = docs_from_files(["CustomProtocol"])
       assert module_node.type == :protocol
     end
 
     test "ignores internal functions" do
-      [module_node] = docs_from_files(["CustomProtocol"])
+      {[module_node], _} = docs_from_files(["CustomProtocol"])
       functions = Enum.map(module_node.docs, fn doc -> doc.id end)
       assert functions == ["plus_one/1", "plus_two/1"]
     end
@@ -293,7 +294,7 @@ defmodule ExDoc.RetrieverTest do
 
   describe "implementations" do
     test "are skipped" do
-      assert [] = docs_from_files(["CustomProtocol.Number"])
+      assert {[], _} = docs_from_files(["CustomProtocol.Number"])
     end
   end
 end

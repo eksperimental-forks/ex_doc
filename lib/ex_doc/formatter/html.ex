@@ -10,14 +10,14 @@ defmodule ExDoc.Formatter.HTML do
   Generate HTML documentation for the given modules.
   """
   @spec run(list, ExDoc.Config.t()) :: String.t()
-  def run(project_nodes, config) when is_map(config) do
+  def run({project_nodes, docs_false}, config) when is_map(config) do
     config = normalize_config(config)
     config = %{config | output: Path.expand(config.output)}
 
     build = Path.join(config.output, ".build")
     output_setup(build, config)
 
-    autolink = Autolink.compile(project_nodes, ".html", config)
+    autolink = Autolink.compile({project_nodes, docs_false}, ".html", config)
     linked = Autolink.all(project_nodes, autolink)
 
     nodes_map = %{

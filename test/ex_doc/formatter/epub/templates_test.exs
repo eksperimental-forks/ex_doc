@@ -28,8 +28,8 @@ defmodule ExDoc.Formatter.EPUB.TemplatesTest do
 
   defp get_module_page(names, config \\ []) do
     config = doc_config(config)
-    mods = ExDoc.Retriever.docs_from_modules(names, config)
-    mods = HTML.Autolink.all(mods, HTML.Autolink.compile(mods, ".xhtml", config))
+    {mods, mods_doc_false} = ExDoc.Retriever.docs_from_modules(names, config)
+    mods = HTML.Autolink.all(mods, HTML.Autolink.compile({mods, mods_doc_false}, ".xhtml", config))
     Templates.module_page(config, hd(mods))
   end
 

@@ -30,8 +30,8 @@ defmodule ExDoc.Formatter.HTML.TemplatesTest do
 
   defp get_module_page(names, config \\ []) do
     config = doc_config(config)
-    mods = ExDoc.Retriever.docs_from_modules(names, config)
-    mods = HTML.Autolink.all(mods, HTML.Autolink.compile(mods, ".html", config))
+    {mods, mods_doc_false} = ExDoc.Retriever.docs_from_modules(names, config)
+    mods = HTML.Autolink.all(mods, HTML.Autolink.compile({mods, mods_doc_false}, ".html", config))
     Templates.module_page(hd(mods), @empty_nodes_map, config)
   end
 
@@ -189,7 +189,7 @@ defmodule ExDoc.Formatter.HTML.TemplatesTest do
 
     test "outputs listing for the given nodes" do
       names = [CompiledWithDocs, CompiledWithDocs.Nested]
-      nodes = ExDoc.Retriever.docs_from_modules(names, doc_config())
+      {nodes, _} = ExDoc.Retriever.docs_from_modules(names, doc_config())
       content = Templates.create_sidebar_items(%{modules: nodes}, [])
 
       assert content =~ ~r("modules":\[\{"id":"CompiledWithDocs","title":"CompiledWithDocs")ms
@@ -199,7 +199,7 @@ defmodule ExDoc.Formatter.HTML.TemplatesTest do
     end
 
     test "outputs nodes grouped based on metadata" do
-      nodes =
+      {nodes, _} =
         ExDoc.Retriever.docs_from_modules(
           [CompiledWithDocs, CompiledWithDocs.Nested],
           doc_config(
@@ -223,7 +223,7 @@ defmodule ExDoc.Formatter.HTML.TemplatesTest do
     test "outputs module groups for the given nodes" do
       names = [CompiledWithDocs, CompiledWithDocs.Nested]
       group_mapping = [groups_for_modules: [Group: [CompiledWithDocs]]]
-      nodes = ExDoc.Retriever.docs_from_modules(names, doc_config(group_mapping))
+      {nodes, _} = ExDoc.Retriever.docs_from_modules(names, doc_config(group_mapping))
       content = Templates.create_sidebar_items(%{modules: nodes}, [])
 
       assert content =~ ~r("id":"CompiledWithDocs","title":"CompiledWithDocs","group":"Group")ms
