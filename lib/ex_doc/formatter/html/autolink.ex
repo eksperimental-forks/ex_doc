@@ -95,6 +95,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
 
     %{
       aliases: aliases,
+      config: config,
       docs_refs: docs_refs ++ types_refs,
       extension: extension,
       lib_dirs: lib_dirs,
@@ -197,14 +198,14 @@ defmodule ExDoc.Formatter.HTML.Autolink do
 
     typespecs =
       for typespec <- module.typespecs do
-        %{typespec | spec: typespec(typespec.spec, locals, aliases, lib_dirs)}
+        %{typespec | spec: typespec(typespec.spec, locals, aliases, lib_dirs, compiled)}
       end
 
     docs =
       for module_node <- module.docs do
         %{
           module_node
-          | specs: Enum.map(module_node.specs, &typespec(&1, locals, aliases, lib_dirs))
+          | specs: Enum.map(module_node.specs, &typespec(&1, locals, aliases, lib_dirs, compiled))
         }
       end
 
@@ -217,17 +218,17 @@ defmodule ExDoc.Formatter.HTML.Autolink do
   It converts the given `ast` to string while linking
   the locals given by `typespecs` as HTML.
   """
-  def typespec(ast, typespecs, aliases \\ [], lib_dirs \\ default_lib_dirs()) do
+  def typespec(ast, typespecs, aliases \\ [], lib_dirs \\ default_lib_dirs(), options \\ %{}) do
     {formatted, placeholders} =
-      format_and_extract_typespec_placeholders(ast, typespecs, aliases, lib_dirs)
+      format_and_extract_typespec_placeholders(ast, typespecs, aliases, lib_dirs, options)
 
     replace_placeholders(formatted, placeholders)
   end
 
   @doc false
-  def format_and_extract_typespec_placeholders(ast, typespecs, aliases, lib_dirs) do
+  def format_and_extract_typespec_placeholders(ast, typespecs, aliases, lib_dirs, options) do
     ref = make_ref()
-    elixir_docs = get_elixir_docs(aliases, lib_dirs)
+    elixir_docs = get_elixir_docs(aliases, lib_dirs, options)
 
     {formatted_ast, placeholders} =
       Macro.prewalk(ast, %{}, fn
@@ -264,7 +265,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
         when is_atom(name) and is_list(args) ->
           alias = expand_alias(alias)
 
-          if source = get_source(alias, aliases, lib_dirs) do
+          if source = get_source(alias, aliases, lib_dirs, options) do
             url = type_remote_url(source, alias, name, args)
             put_placeholder(form, url, placeholders)
           else
@@ -381,7 +382,16 @@ defmodule ExDoc.Formatter.HTML.Autolink do
       pmfa = {_prefix, module, function, arity} = split_match(kind, match)
       text = default_text(":", link_type, pmfa, text)
 
-      if doc = module_docs(:erlang, module, lib_dirs) do
+      module_or_mfa =
+        case kind do
+          :module ->
+            module
+
+          :function ->
+            {module, function, arity}
+        end
+
+      if doc = module_docs(:erlang, module_or_mfa, lib_dirs, options) do
         case kind do
           :module ->
             "[#{text}](#{doc}#{module}.html)"
@@ -407,16 +417,16 @@ defmodule ExDoc.Formatter.HTML.Autolink do
       text = default_text("", link_type, pmfa, text)
 
       cond do
+        match in modules_doc_false ->
+          all
+
         match == module_id ->
           "[#{text}](#content)"
 
         match in modules_refs ->
           "[#{text}](#{match}#{extension})"
 
-        match in modules_doc_false ->
-          all
-
-        doc = module_docs(:elixir, match, lib_dirs) ->
+        doc = module_docs(:elixir, match, lib_dirs, options) ->
           "[#{text}](#{doc}#{match}.html)"
 
         true ->
@@ -433,7 +443,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
     extension = options[:extension] || ".html"
     lib_dirs = options[:lib_dirs] || default_lib_dirs(:elixir)
     locals = options[:locals] || []
-    elixir_docs = get_elixir_docs(aliases, lib_dirs)
+    elixir_docs = get_elixir_docs(aliases, lib_dirs, options)
     id = options[:id]
     module_id = options[:module_id]
     skip_warnings_on = options[:skip_undefined_reference_warnings_on] || []
@@ -443,6 +453,9 @@ defmodule ExDoc.Formatter.HTML.Autolink do
       text = default_text("", link_type, pmfa, text)
 
       cond do
+        module in modules_doc_false ->
+          all
+
         match in locals ->
           "[#{text}](##{prefix}#{enc_h(function)}/#{arity})"
 
@@ -462,9 +475,6 @@ defmodule ExDoc.Formatter.HTML.Autolink do
           "[#{text}](#{elixir_docs}Kernel.SpecialForms" <>
             "#{extension}##{prefix}#{enc_h(function)}/#{arity})"
 
-        module in modules_doc_false ->
-          all
-
         module in modules_refs ->
           if module_id not in skip_warnings_on and id not in skip_warnings_on do
             IO.warn(
@@ -476,7 +486,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
 
           all
 
-        doc = module_docs(:elixir, module, lib_dirs) ->
+        doc = module_docs(:elixir, {module, function, arity}, lib_dirs, options) ->
           "[#{text}](#{doc}#{module}.html##{prefix}#{enc_h(function)}/#{arity})"
 
         true ->
@@ -501,7 +511,7 @@ defmodule ExDoc.Formatter.HTML.Autolink do
         match in modules_refs ->
           "[#{text}](#{match}#{extension})"
 
-        doc = module_docs(:elixir, match, lib_dirs) ->
+        doc = module_docs(:elixir, match, lib_dirs, options) ->
           "[#{text}](#{doc}#{match}.html)"
 
         true ->
@@ -548,11 +558,17 @@ defmodule ExDoc.Formatter.HTML.Autolink do
   defp default_lib_dirs(:erlang),
     do: erlang_lib_dirs()
 
-  defp module_docs(:elixir, module, lib_dirs),
-    do: lib_dirs_to_doc("Elixir." <> module, lib_dirs)
+  defp module_docs(:elixir, {module, function, arity}, lib_dirs, options),
+    do: lib_dirs_to_doc({"Elixir." <> module, function, arity}, lib_dirs, options)
 
-  defp module_docs(:erlang, module, lib_dirs),
-    do: lib_dirs_to_doc(module, lib_dirs)
+  defp module_docs(:elixir, module, lib_dirs, options),
+    do: lib_dirs_to_doc("Elixir." <> module, lib_dirs, options)
+
+  defp module_docs(:erlang, {module, function, arity}, lib_dirs, options),
+    do: lib_dirs_to_doc({module, function, arity}, lib_dirs, options)
+
+  defp module_docs(:erlang, module, lib_dirs, options),
+    do: lib_dirs_to_doc(module, lib_dirs, options)
 
   @doc false
   defp split_match(:module, string), do: {"", string, "", ""}
@@ -597,20 +613,65 @@ defmodule ExDoc.Formatter.HTML.Autolink do
   defp doc_prefix(%{type: c}) when c in [:callback, :macrocallback], do: "c:"
   defp doc_prefix(%{type: _}), do: ""
 
-  defp lib_dirs_to_doc(module, lib_dirs) do
+  defp lib_dirs_to_doc(module_or_mfa, lib_dirs, options) do
+    {module, function, arity} = 
+      case module_or_mfa do
+        {m, "", ""} -> {"#{m}", nil, nil}
+        {m, f, a} -> {m, f, a}
+        module -> {"#{module}", nil, nil}
+      end
+
+    IO.inspect {module, :code.where_is_file('#{module}.beam')}
     case :code.where_is_file('#{module}.beam') do
       :non_existing ->
         nil
 
       path ->
+        module = String.trim_leading(module, "Elixir.")
         path = path |> List.to_string() |> Path.expand()
+        config = options[:config] || %ExDoc.Config{}
+        extension = options[:extension] || ".html"
 
-        lib_dirs
-        |> Enum.filter(fn {lib_dir, _} -> String.starts_with?(path, lib_dir) end)
-        |> Enum.sort_by(fn {lib_dir, _} -> -byte_size(lib_dir) end)
-        |> case do
-          [{_, doc} | _] -> doc
-          _ -> nil
+        {docs, docs_false} = ExDoc.Retriever.docs_from_files([path], config)
+        IO.inspect {docs, docs_false}
+        IO.inspect lib_dirs
+        IO.inspect path
+
+        if module in docs_false do
+          nil
+        else
+          lib_dirs
+          |> Enum.filter(fn {lib_dir, _} -> String.starts_with?(path, lib_dir) end)
+          |> Enum.sort_by(fn {lib_dir, _} -> -byte_size(lib_dir) end)
+          |> case do
+            [{_doc_path, doc} | _] ->
+              IO.inspect doc
+              # TODO: implement a cache service for this
+              compiled = compile({docs, docs_false}, extension, config)
+
+              docs_refs = compiled[:docs_refs] || []
+              modules_refs = compiled[:modules_refs] || []
+              IO.inspect docs_refs
+              IO.inspect modules_refs
+
+              if is_nil(function) or is_nil(arity) do
+                if module in modules_refs do
+                  doc
+                else
+                  nil
+                end
+              else
+                mfa = module <> "." <> function <> "/" <> arity
+                if mfa in docs_refs do
+                  doc
+                else
+                  nil
+                end
+              end
+
+            _ ->
+              nil
+          end
         end
     end
   end
@@ -684,17 +745,17 @@ defmodule ExDoc.Formatter.HTML.Autolink do
   defp expand_alias(atom) when is_atom(atom), do: atom
   defp expand_alias(_), do: nil
 
-  defp get_source(alias, aliases, lib_dirs) do
+  defp get_source(alias, aliases, lib_dirs, options) do
     cond do
       is_nil(alias) -> nil
       alias in aliases -> ""
-      doc = lib_dirs_to_doc(alias, lib_dirs) -> doc
+      doc = lib_dirs_to_doc(alias, lib_dirs, options) -> doc
       true -> nil
     end
   end
 
-  defp get_elixir_docs(aliases, lib_dirs) do
-    get_source(Kernel, aliases, lib_dirs)
+  defp get_elixir_docs(aliases, lib_dirs, options) do
+    get_source(Kernel, aliases, lib_dirs, options)
   end
 
   @doc false

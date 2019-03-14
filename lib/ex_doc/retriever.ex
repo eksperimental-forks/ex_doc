@@ -10,6 +10,18 @@ defmodule ExDoc.Retriever do
   alias ExDoc.{GroupMatcher}
   alias ExDoc.Retriever.Error
 
+  def compiled_with_erlang_docs?() do
+    case :code.where_is_file('erlang.beam') do
+      :non_existing ->
+        
+
+      path ->
+        docs_from_files([path])
+        module = String.trim_leading(module, "Elixir.")
+
+    end
+  end
+
   @doc """
   Extract documentation from all modules in the specified directory or directories.
   """

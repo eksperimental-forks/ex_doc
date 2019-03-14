@@ -51,6 +51,11 @@ defmodule ExDoc.RetrieverTest do
              """
     end
 
+    test "returns modules with @doc false" do
+      {_docs, docs_false} = docs_from_files(["CompiledWithDocs", "CompiledWithDocs","Deprecated", "Deprecated2"])
+      assert docs_false == ["Deprecated", "Deprecated2"]
+    end
+
     test "returns module group" do
       {[module_node], _} =
         docs_from_files(["CompiledWithDocs"], groups_for_modules: [Group: [CompiledWithDocs]])

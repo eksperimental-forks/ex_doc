@@ -209,6 +209,11 @@ defmodule ExDoc.Formatter.HTML.AutolinkTest do
       assert project_doc("`Mod.example/1`", %{}) == "`Mod.example/1`"
     end
 
+    test "does not autolink Mod and Mod.functions when Mod has @doc false" do
+      assert project_doc("`Mod.example/1`", %{docs_refs: ["Foo.example/1"], modules_doc_false: ["Mod"]}) == "`Mod.example/1`"
+      assert project_doc("`Mod.example/1`", %{docs_refs: ["Mod.example/1"], modules_doc_false: ["Mod"]}) == "`Mod.example/1`"
+    end
+
     test "does not autolink pre-linked Mod.functions" do
       assert project_doc("[`Mod.example/1`]()", %{docs_refs: ["Mod.example/1"]}) ==
                "[`Mod.example/1`]()"
@@ -633,7 +638,7 @@ defmodule ExDoc.Formatter.HTML.AutolinkTest do
 
   defp assert_typespec_placeholders(original, expected, typespecs, aliases \\ []) do
     ast = Code.string_to_quoted!(original)
-    {actual, _} = Autolink.format_and_extract_typespec_placeholders(ast, typespecs, aliases, [])
+    {actual, _} = Autolink.format_and_extract_typespec_placeholders(ast, typespecs, aliases, [], %{})
     assert actual == expected, "Original: #{original}\nExpected: #{expected}\nActual:   #{actual}"
   end
 
