@@ -30,8 +30,11 @@ defmodule ExDoc.Mixfile do
 
   defp deps do
     [
-      {:earmark, "~> 1.4.0"},
+      {:earmark,
+       git: "https://github.com/pragdave/earmark.git",
+       ref: "ecc9b71040c9fbeb5300b2c4cca4650c5a0254a7"},
       {:makeup_elixir, "~> 0.14"},
+      {:floki, "~> 0.26.0"},
       {:excoveralls, "~> 0.3", only: :test},
       {:jason, "~> 1.2", only: :test}
     ]
