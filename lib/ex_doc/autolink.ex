@@ -23,6 +23,8 @@ defmodule ExDoc.Autolink do
   # * `:extras` - list of extras
   #
   # * `:skip_undefined_reference_warnings_on` - list of modules to skip the warning on
+  #
+  # * `:skip_reference_warnings_for` - list of references to skip warning when called
 
   @enforce_keys [:app, :file]
 
@@ -36,7 +38,8 @@ defmodule ExDoc.Autolink do
     extras: [],
     ext: ".html",
     siblings: [],
-    skip_undefined_reference_warnings_on: []
+    skip_undefined_reference_warnings_on: [],
+    skip_reference_warnings_for: []
   ]
 
   alias ExDoc.Formatter.HTML
@@ -414,7 +417,7 @@ defmodule ExDoc.Autolink do
             "documentation references module \"#{module_string}\" but it is #{visibility}"
           end
 
-        maybe_warn(message, config, visibility)
+        maybe_warn(message, config, visibility, module_string)
 
         nil
     end
@@ -555,22 +558,32 @@ defmodule ExDoc.Autolink do
     end
   end
 
-  defp maybe_warn(ref_or_message, config, visibility) do
-    skipped = config.skip_undefined_reference_warnings_on
+  defp maybe_warn(ref_or_message, config, visibility, ref_string \\ nil) do
     file = Path.relative_to(config.file, File.cwd!())
     line = config.line
     id = config.id
 
-    list = [id, config.module_id, file]
+    skip_on = config.skip_undefined_reference_warnings_on
+    skip_for = config.skip_reference_warnings_for
 
-    list =
-      if match?({_, _, _, _}, ref_or_message) do
-        [ref_id(ref_or_message) | list]
-      else
-        list
+    ref_list_on = [id, config.module_id, file]
+
+    ref_list_for =
+      cond do
+        match?({_, _, _, _}, ref_or_message) ->
+          [ref_id(ref_or_message)]
+
+        ref_string != nil ->
+          [ref_string]
+
+        true ->
+          []
       end
 
-    unless Enum.any?(list, &(&1 in skipped)) do
+    if Enum.any?(ref_list_on, &(&1 in skip_on)) or
+         Enum.any?(ref_list_for, &(&1 in skip_for)) do
+      nil
+    else
       warn(ref_or_message, {file, line}, id, visibility)
     end
   end

@@ -369,7 +369,7 @@ defmodule ExDoc.Formatter.HTML.TemplatesTest do
     test "outputs the types and function specs" do
       content =
         get_module_page([TypesAndSpecs, TypesAndSpecs.Sub],
-          skip_undefined_reference_warnings_on: ["t:TypesAndSpecs.private/0"]
+          skip_reference_warnings_for: ["t:TypesAndSpecs.private/0"]
         )
 
       integer = ~s[<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>()]

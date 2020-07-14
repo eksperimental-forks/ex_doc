@@ -54,10 +54,9 @@ defmodule ExDoc.Formatter.HTMLTest do
 
   defp generate_docs(config) do
     config =
-      Keyword.put_new(config, :skip_undefined_reference_warnings_on, [
-        "Warnings",
-        "t:TypesAndSpecs.private/0"
-      ])
+      config
+      |> Keyword.put_new(:skip_undefined_reference_warnings_on, ["Warnings"])
+      |> Keyword.put_new(:skip_reference_warnings_for, ["t:TypesAndSpecs.private/0"])
 
     ExDoc.generate_docs(config[:project], config[:version], config)
   end
@@ -128,7 +127,9 @@ defmodule ExDoc.Formatter.HTMLTest do
         generate_docs(
           doc_config(
             skip_undefined_reference_warnings_on: [
-              "test/fixtures/warnings.ex",
+              "test/fixtures/warnings.ex"
+            ],
+            skip_reference_warnings_for: [
               "t:TypesAndSpecs.private/0"
             ]
           )
