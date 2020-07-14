@@ -451,6 +451,9 @@ defmodule ExDoc.Autolink do
       kind == :function ->
         try_autoimported_function(name, arity, mode, config)
 
+      kind == :type and visibility == :private ->
+        nil
+
       true ->
         maybe_warn(ref, config, visibility)
         nil
