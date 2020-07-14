@@ -26,8 +26,14 @@ defmodule ExDoc.AutolinkTest do
                ~m"[`IEx.Helpers`](https://hexdocs.pm/iex/IEx.Helpers.html)"
     end
 
-    test "private module" do
-      assert_unchanged("String.Unicode")
+    test "hidden module" do
+      captured =
+        assert_warn(fn ->
+          assert_unchanged("String.Unicode")
+        end)
+
+      assert captured =~
+               "documentation references module \"String.Unicode\" but it is hidden"
     end
 
     test "erlang module" do
@@ -60,6 +66,7 @@ defmodule ExDoc.AutolinkTest do
       assert autolink("Foo.foo/1") == ~m"[`Foo.foo/1`](Foo.html#foo/1)"
       assert autolink("Foo../2") == ~m"[`Foo../2`](Foo.html#./2)"
       assert autolink("Foo.../2") == ~m"[`Foo.../2`](Foo.html#../2)"
+
       assert_unchanged("Bad.bar/1")
     end
 
@@ -168,11 +175,37 @@ defmodule ExDoc.AutolinkTest do
       assert autolink(~m"[custom text](`:lists.all/2`)") ==
                ~m"[custom text](http://www.erlang.org/doc/man/lists.html#all-2)"
 
-      # TODO: with custom links and backticks there are no false positives (you
-      #       always mean to link) so we should always warn on mismatches?
-      #       Though backticks are markdown specific, is that ok?
-      # assert_warn(fn ->
-      assert_unchanged(~m"[custom text](`Unknown`)")
+      captured =
+        assert_warn(fn ->
+          assert_unchanged(~m"[custom text](`Unknown`)")
+        end)
+
+      assert captured =~
+               "documentation references module \"Unknown\" but it is undefined"
+
+      captured =
+        assert_warn(fn ->
+          assert_unchanged(~m"[custom text](Unknown)")
+        end)
+
+      assert captured =~
+               "documentation references file \"Unknown\" but it doesn't exist"
+
+      captured =
+        assert_warn(fn ->
+          assert_unchanged(~m"[custom text](`LICENSE`)", extras: ["LICENSE"])
+        end)
+
+      assert captured =~
+               "documentation references module \"LICENSE\" but it is undefined"
+
+      captured =
+        assert_warn(fn ->
+          assert_unchanged(~m"[an unknown task](`mix unknown.task`)")
+        end)
+
+      assert captured =~
+               "documentation references \"mix unknown.task\" but such task is undefined"
     end
 
     test "mix task" do
@@ -233,9 +266,16 @@ defmodule ExDoc.AutolinkTest do
 
   describe "typespec/3" do
     test "operators" do
-      assert typespec(quote(do: +foo() :: foo())) == ~s[+foo() :: foo()]
+      ExDoc.Refs.insert([
+        {{:module, MyModule}, :public},
+        {{:type, MyModule, :foo, 0}, :public}
+      ])
 
-      assert typespec(quote(do: foo() + foo() :: foo())) == ~s[foo() + foo() :: foo()]
+      assert typespec(quote(do: +foo() :: foo())) ==
+               ~s[+<a href="#t:foo/0">foo</a>() :: <a href="#t:foo/0">foo</a>()]
+
+      assert typespec(quote(do: foo() + foo() :: foo())) ==
+               ~s[<a href=\"#t:foo/0\">foo</a>() + <a href=\"#t:foo/0\">foo</a>() :: <a href=\"#t:foo/0\">foo</a>()]
 
       assert typespec(quote(do: -0 :: 0)) == ~s[-0 :: 0]
     end
@@ -245,26 +285,29 @@ defmodule ExDoc.AutolinkTest do
         {{:module, MyModule}, :public},
         {{:type, MyModule, :foo, 1}, :public},
         {{:type, MyModule, :foo, 2}, :public},
-        {{:type, MyModule, :foo!, 1}, :public}
+        {{:type, MyModule, :foo!, 1}, :public},
+        {{:type, MyModule, :bar, 0}, :public},
+        {{:type, MyModule, :bar, 1}, :public},
+        {{:type, MyModule, :baz, 1}, :public}
       ])
 
       assert typespec(quote(do: t() :: foo(1))) ==
                ~s[t() :: <a href="#t:foo/1">foo</a>(1)]
 
       assert typespec(quote(do: t() :: bar(foo(1)))) ==
-               ~s[t() :: bar(<a href="#t:foo/1">foo</a>(1))]
+               ~s[t() :: <a href=\"#t:bar/1\">bar</a>(<a href=\"#t:foo/1\">foo</a>(1))]
 
       assert typespec(quote(do: (t() :: bar(foo(1)) when bat: foo(1)))) ==
-               ~s[t() :: bar(<a href="#t:foo/1">foo</a>(1)) when bat: <a href=\"#t:foo/1\">foo</a>(1)]
+               ~s[t() :: <a href=\"#t:bar/1\">bar</a>(<a href="#t:foo/1">foo</a>(1)) when bat: <a href=\"#t:foo/1\">foo</a>(1)]
 
       assert typespec(quote(do: t() :: bar(baz(1)))) ==
-               ~s[t() :: bar(baz(1))]
+               ~s[t() :: <a href=\"#t:bar/1\">bar</a>(<a href=\"#t:baz/1\">baz</a>(1))]
 
       assert typespec(quote(do: t() :: foo(bar(), bar()))) ==
-               ~s[t() :: <a href="#t:foo/2">foo</a>(bar(), bar())]
+               ~s[t() :: <a href="#t:foo/2">foo</a>(<a href=\"#t:bar/0\">bar</a>(), <a href=\"#t:bar/0\">bar</a>())]
 
       assert typespec(quote(do: t() :: foo!(bar()))) ==
-               ~s[t() :: <a href="#t:foo!/1">foo!</a>(bar())]
+               ~s[t() :: <a href="#t:foo!/1">foo!</a>(<a href=\"#t:bar/0\">bar</a>())]
     end
 
     test "remotes" do
@@ -336,7 +379,7 @@ defmodule ExDoc.AutolinkTest do
         assert_unchanged("Foo.bar/1", file: "lib/foo.ex", line: 1, id: nil)
       end)
 
-    assert captured =~ "documentation references function Foo.bar/1"
+    assert captured =~ "documentation references function \"Foo.bar/1\""
     assert captured =~ ~r{lib/foo.ex:1\n$}
 
     captured =
@@ -344,7 +387,7 @@ defmodule ExDoc.AutolinkTest do
         assert_unchanged("Foo.bar/1", file: "lib/foo.ex", id: "Foo.foo/0")
       end)
 
-    assert captured =~ "documentation references function Foo.bar/1"
+    assert captured =~ "documentation references function \"Foo.bar/1\""
     assert captured =~ ~r{lib/foo.ex: Foo.foo/0\n$}
 
     assert_warn(fn ->
@@ -375,10 +418,27 @@ defmodule ExDoc.AutolinkTest do
         assert_unchanged(~m"[Foo](Foo Bar.md)", opts)
       end)
 
-    assert captured =~ "documentation references file `Foo Bar.md` but it doesn't exist"
+    assert captured =~ "documentation references file \"Foo Bar.md\" but it doesn't exist"
 
     options = [skip_undefined_reference_warnings_on: ["MyModule"], module_id: "MyModule"]
     assert_unchanged("String.upcase/9", options)
+
+    captured =
+      assert_warn(fn ->
+        opts = [extras: []]
+        assert_unchanged(~m"[bad](`String.upcase/9`)", opts)
+      end)
+
+    assert captured =~
+             "documentation references function \"String.upcase/9\" but it is undefined"
+
+    captured =
+      assert_warn(fn ->
+        assert_unchanged(~m"[Unknown](`Unknown`)")
+      end)
+
+    assert captured =~
+             "documentation references module \"Unknown\" but it is undefined"
   end
 
   ## Helpers
