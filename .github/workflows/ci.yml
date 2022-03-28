@@ -49,11 +49,23 @@ jobs:
       - name: Prerelease
         run: test/prerelease.sh
 
-      - name: Generate docs
+      - name: Generate ExDoc docs
         run: |
           mix docs
           test -f doc/index.html && echo "doc/index.html exists."
           test -f doc/ExDoc.epub && echo "doc/ExDoc.epub exists."
+
+      - name: Generate Elixir docs
+        run: |
+          cd ..
+          echo "Cloning Elixir repository"
+          git clone https://github.com/elixir-lang/elixir.git --depth 1
+          cd elixir
+          echo "Building Elixir docs"
+          make docs
+          for app in elixir eex ex_unit iex logger mix; do
+            test -f doc/${app}/index.html && echo "doc/${app}/index.html exists."
+          done
 
   check_js:
     name: Check JS
