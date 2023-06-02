@@ -3,6 +3,12 @@ defmodule ExDoc.Formatter.EPUBTest do
 
   @moduletag :tmp_dir
 
+  setup %{tmp_dir: tmp_dir} do
+    output = tmp_dir <> "/epub"
+    File.mkdir_p!(output)
+    File.touch!(output <> "/.ex_doc")
+  end
+
   @before_closing_head_tag_content_epub "UNIQUE:<dont-escape>&copy;BEFORE-CLOSING-HEAD-TAG-HTML</dont-escape>"
   @before_closing_body_tag_content_epub "UNIQUE:<dont-escape>&copy;BEFORE-CLOSING-BODY-TAG-HTML</dont-escape>"
 
